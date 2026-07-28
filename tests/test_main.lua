@@ -4,6 +4,7 @@ local asyncRequest = nil
 local server = nil
 local preview = nil
 local controller = nil
+local originalNativeServiceCallback = function() end
 
 local function check(name, condition)
     if condition then
@@ -55,6 +56,7 @@ local function newServer(ssl, bonjour)
 end
 
 hs = {
+    textDroppedToDockIconCallback = originalNativeServiceCallback,
     alert = {
         show = function(message)
             table.insert(alerts, message)
@@ -194,6 +196,11 @@ check("disables Bonjour advertisement", server.bonjour == false)
 check("binds only to localhost", server.interface == "localhost")
 check("loads local service port", server.port == 18492)
 check("enforces body limit", server.bodySize == 50000)
+check("registers Hammerspoon native text Service", hs.textDroppedToDockIconCallback ~= originalNativeServiceCallback)
+
+hs.textDroppedToDockIconCallback("Native selected text")
+check("native text Service starts extraction", asyncRequest and asyncRequest.url == "https://openrouter.ai/api/v1/chat/completions")
+asyncRequest.callback(500, "bad response")
 
 local _, wrongPathStatus = server.callback("POST", "/wrong", {}, "Example")
 check("rejects unknown endpoint", wrongPathStatus == 404)
@@ -241,6 +248,7 @@ check("renders Calendar helper error in preview", preview and preview.errorScrip
 
 Integration.stop()
 check("stops local receiver", server.stopped == true)
+check("restores previous native Service callback", hs.textDroppedToDockIconCallback == originalNativeServiceCallback)
 
 local missingKeyStarted = Integration.start({
     serviceConfigFile = "tests/fixtures/service.fixture",

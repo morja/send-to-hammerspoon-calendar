@@ -9,13 +9,13 @@ The software is free under the MIT License. OpenRouter models may charge for API
 ## How it works
 
 ```text
-Selected text → macOS Service ─┐
-                              ├→ Hammerspoon → OpenRouter → editable preview → Calendar
-Clipboard text → global key ──┘
+Selected text → Hammerspoon's built-in macOS Service ─┐
+                                                     ├→ Hammerspoon → OpenRouter → editable preview → Calendar
+Clipboard text → global key ─────────────────────────┘
 ```
 
-- The Service posts plain text to an HTTP server bound only to `localhost`.
-- A random 256-bit token authenticates Service requests.
+- Hammerspoon's built-in **Send to Hammerspoon** Service delivers selected text directly to the Lua callback.
+- An optional HTTP bridge is bound only to `localhost` and authenticated with a random 256-bit token.
 - The global shortcut reads the current clipboard directly inside Hammerspoon.
 - Both entry points use the same size checks, structured extraction, validation, preview, and Calendar creation path.
 - Calendar values are passed to a fixed JavaScript for Automation (JXA) helper as separate arguments, not interpolated into shell or script source.
@@ -41,10 +41,15 @@ The installer:
 1. copies the Lua and JXA files to `~/.hammerspoon/send-to-hammerspoon/`;
 2. creates a private Service token in `~/.config/send-to-hammerspoon/service.conf`;
 3. creates a private, empty key file at `~/.config/send-to-hammerspoon/openrouter-api-key`;
-4. installs the included **Send to Hammerspoon** Quick Action if no Service with that name exists; and
-5. adds a small, marked loader block to `~/.hammerspoon/init.lua` if it is not already present.
+4. adds a small, marked loader block to `~/.hammerspoon/init.lua` if it is not already present.
 
-An existing Service is deliberately left unchanged. To make an existing **Send to Hammerspoon** Service compatible, open it in Automator and configure its **Run Shell Script** action as follows:
+Hammerspoon itself registers the **Send to Hammerspoon** macOS Service. The integration attaches its selected-text handler directly to that native Service, so no Automator workflow is needed.
+
+### Optional HTTP bridge
+
+The localhost receiver remains available for launchers or automation tools that cannot invoke the native Service. The example workflow under `service/` demonstrates the bridge. Give custom workflows a distinct name such as **Send to Hammerspoon Calendar (HTTP)** to avoid colliding with Hammerspoon's built-in Service.
+
+Configure a **Run Shell Script** action as follows:
 
 - Workflow receives current: `text` in `any application`
 - Shell: `/bin/zsh`
@@ -74,6 +79,9 @@ Edit local settings in `~/.hammerspoon/send-to-hammerspoon/config.lua`. For exam
 return {
     openRouterModel = "openai/gpt-4o-mini",
     defaultCalendar = "Work",
+    nativeService = {
+        enabled = true,
+    },
     hotkey = {
         enabled = true,
         modifiers = { "cmd", "alt", "ctrl" },
@@ -91,7 +99,7 @@ macOS asks for permissions when each capability is first used. Review the exact 
 
 - **Accessibility:** enable Hammerspoon under **System Settings → Privacy & Security → Accessibility** so its global shortcut works reliably.
 - **Automation / Calendar:** allow Hammerspoon (or `osascript` launched by it) to control Calendar under **Privacy & Security → Automation**. The first approved event should trigger this prompt.
-- **Service shortcut:** the Service should appear under **System Settings → Keyboard → Keyboard Shortcuts → Services**. Enable it there and optionally assign a separate keyboard shortcut.
+- **Service shortcut:** Hammerspoon's built-in Service should appear under **System Settings → Keyboard → Keyboard Shortcuts → Services**. Enable it there and optionally assign a separate keyboard shortcut.
 
 Hammerspoon must be running and its configuration loaded for either entry point.
 
@@ -120,7 +128,7 @@ Selected or clipboard text is sent to OpenRouter and then to the provider servin
 
 The extracted result remains local after the API response and is not written to a project log. Hammerspoon and macOS may still expose diagnostics in their consoles. This project does not implement telemetry.
 
-The local receiver:
+The optional local HTTP receiver:
 
 - binds to `localhost`, not a LAN interface;
 - disables Bonjour advertising;
@@ -155,7 +163,7 @@ The suite exercises event validation and syntax-checks Lua, zsh, the Automator p
 Quit or stop the integration in Hammerspoon, then remove:
 
 - `~/.hammerspoon/send-to-hammerspoon/`
-- `~/Library/Services/Send to Hammerspoon.workflow` if it is the workflow installed by this project
+- any optional custom HTTP bridge workflow you created
 - `~/.config/send-to-hammerspoon/`
 - the marked block between `BEGIN send-to-hammerspoon-calendar` and `END send-to-hammerspoon-calendar` in `~/.hammerspoon/init.lua`
 

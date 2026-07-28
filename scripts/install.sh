@@ -6,10 +6,9 @@ script_directory=${0:A:h}
 project_directory=${script_directory:h}
 install_directory="$HOME/.hammerspoon/send-to-hammerspoon"
 config_directory="$HOME/.config/send-to-hammerspoon"
-service_directory="$HOME/Library/Services/Send to Hammerspoon.workflow"
 init_file="$HOME/.hammerspoon/init.lua"
 
-mkdir -p "$install_directory" "$config_directory" "$HOME/.hammerspoon" "$HOME/Library/Services"
+mkdir -p "$install_directory" "$config_directory" "$HOME/.hammerspoon"
 
 /usr/bin/install -m 0644 "$project_directory/src/event.lua" "$install_directory/event.lua"
 /usr/bin/install -m 0644 "$project_directory/src/send_to_hammerspoon.lua" "$install_directory/send_to_hammerspoon.lua"
@@ -33,14 +32,6 @@ if [[ ! -e "$key_file" ]]; then
 fi
 /bin/chmod 0600 "$key_file"
 
-if [[ ! -e "$service_directory" ]]; then
-    /usr/bin/ditto "$project_directory/service/Send to Hammerspoon.workflow" "$service_directory"
-    print "Installed macOS Service: $service_directory"
-else
-    print "Kept existing macOS Service unchanged: $service_directory"
-    print "Confirm its Run Shell Script action executes: $install_directory/send-to-hammerspoon-service"
-fi
-
 begin_marker="-- BEGIN send-to-hammerspoon-calendar"
 end_marker="-- END send-to-hammerspoon-calendar"
 
@@ -61,3 +52,4 @@ print "1. Put only your OpenRouter key in: $key_file"
 print "2. Review local settings in: $install_directory/config.lua"
 print "3. Reload Hammerspoon configuration."
 print "4. Grant Automation access to Calendar when macOS asks."
+print "5. Use Hammerspoon's built-in Send to Hammerspoon Service; no extra workflow is required."

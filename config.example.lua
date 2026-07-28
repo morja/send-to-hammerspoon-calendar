@@ -5,6 +5,11 @@ return {
     -- Use an exact Calendar name, or leave empty to choose the first writable calendar.
     defaultCalendar = "",
 
+    -- Handle text sent through Hammerspoon's built-in macOS Service.
+    nativeService = {
+        enabled = true,
+    },
+
     -- This global shortcut processes the current clipboard text.
     hotkey = {
         enabled = true,

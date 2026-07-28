@@ -14,6 +14,8 @@ local state = {
     busy = false,
     calendarBusy = false,
     tasks = {},
+    nativeServiceCallback = nil,
+    previousNativeServiceCallback = nil,
 }
 
 local defaults = {
@@ -22,6 +24,9 @@ local defaults = {
     maxTextBytes = 50000,
     openRouterModel = "openai/gpt-4o-mini",
     defaultCalendar = "",
+    nativeService = {
+        enabled = true,
+    },
     hotkey = {
         enabled = true,
         modifiers = { "cmd", "alt", "ctrl" },
@@ -592,6 +597,14 @@ function M.start(userConfig)
         return false
     end
 
+    if state.config.nativeService.enabled then
+        state.previousNativeServiceCallback = hs.textDroppedToDockIconCallback
+        state.nativeServiceCallback = function(text)
+            M.processText(text)
+        end
+        hs.textDroppedToDockIconCallback = state.nativeServiceCallback
+    end
+
     if state.config.hotkey.enabled then
         state.hotkey = hs.hotkey.bind(
             state.config.hotkey.modifiers,
@@ -605,6 +618,13 @@ function M.start(userConfig)
 end
 
 function M.stop()
+    if state.nativeServiceCallback
+        and hs.textDroppedToDockIconCallback == state.nativeServiceCallback then
+        hs.textDroppedToDockIconCallback = state.previousNativeServiceCallback
+    end
+    state.nativeServiceCallback = nil
+    state.previousNativeServiceCallback = nil
+
     if state.hotkey then
         state.hotkey:delete()
         state.hotkey = nil

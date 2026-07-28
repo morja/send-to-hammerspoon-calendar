@@ -361,6 +361,14 @@ local function showPreview(event)
         end)
         :html(html)
         :show()
+        :bringToFront(true)
+
+    -- A Service is invoked from another foreground app. Explicitly focus the preview so it
+    -- cannot appear behind that app and make a successful extraction look like a no-op.
+    local previewWindow = state.preview:hswindow()
+    if previewWindow then
+        previewWindow:focus()
+    end
 end
 
 local function extractionSchema()

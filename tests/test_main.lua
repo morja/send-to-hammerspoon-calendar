@@ -2,6 +2,7 @@ local failures = 0
 local alerts = {}
 local asyncRequest = nil
 local server = nil
+local preview = nil
 
 local function check(name, condition)
     if condition then
@@ -68,7 +69,27 @@ hs = {
         encode = function()
             return "{}"
         end,
-        decode = function()
+        decode = function(value)
+            if value == "valid-response" then
+                return {
+                    choices = {
+                        { message = { content = "valid-event" } },
+                    },
+                }
+            end
+
+            if value == "valid-event" then
+                return {
+                    title = "Visible preview",
+                    start = "2030-04-12T09:30:00",
+                    ["end"] = "2030-04-12T10:30:00",
+                    all_day = false,
+                    calendar = "",
+                    location = "",
+                    notes = "",
+                }
+            end
+
             return nil
         end,
     },
@@ -78,6 +99,56 @@ hs = {
         end,
     },
     pasteboard = { getContents = function() return nil end },
+    screen = {
+        mainScreen = function()
+            return {
+                frame = function()
+                    return { x = 0, y = 0, w = 1600, h = 1000 }
+                end,
+            }
+        end,
+    },
+    webview = {
+        usercontent = {
+            new = function()
+                return {
+                    setCallback = function(self, callback)
+                        self.callback = callback
+                        return self
+                    end,
+                }
+            end,
+        },
+        new = function()
+            local instance = {}
+            for _, method in ipairs({ "windowTitle", "allowTextEntry", "windowStyle", "deleteOnClose", "windowCallback", "html" }) do
+                instance[method] = function(self)
+                    return self
+                end
+            end
+            function instance:show()
+                self.shown = true
+                return self
+            end
+            function instance:bringToFront(aboveEverything)
+                self.broughtToFront = true
+                self.aboveEverything = aboveEverything
+                return self
+            end
+            function instance:hswindow()
+                return {
+                    focus = function()
+                        self.focused = true
+                    end,
+                }
+            end
+            function instance:delete()
+                self.deleted = true
+            end
+            preview = instance
+            return instance
+        end,
+    },
     printf = function() end,
 }
 
@@ -117,6 +188,10 @@ check("rejects concurrent extraction", busyStatus == 409)
 asyncRequest.callback(500, "bad response")
 local _, acceptedAfterCallback = server.callback("POST", "/event", headers, "Try again")
 check("clears busy state after response", acceptedAfterCallback == 202)
+asyncRequest.callback(200, "valid-response")
+check("shows extracted preview", preview and preview.shown == true)
+check("raises preview above full-screen apps", preview and preview.aboveEverything == true)
+check("focuses preview window", preview and preview.focused == true)
 
 Integration.stop()
 check("stops local receiver", server.stopped == true)

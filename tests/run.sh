@@ -7,6 +7,7 @@ cd "$project_directory"
 
 lua tests/test_event.lua
 lua tests/test_main.lua
+node tests/test_calendar_helper.js
 luac -p src/event.lua
 luac -p src/send_to_hammerspoon.lua
 /bin/zsh -n scripts/install.sh

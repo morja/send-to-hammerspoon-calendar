@@ -3,6 +3,7 @@ local alerts = {}
 local asyncRequest = nil
 local server = nil
 local preview = nil
+local controller = nil
 
 local function check(name, condition)
     if condition then
@@ -66,7 +67,15 @@ hs = {
         end,
     },
     json = {
-        encode = function()
+        encode = function(value)
+            if type(value) ~= "table" then
+                error("incorrect type for hs.json.encode")
+            end
+
+            if value[1] then
+                return '["' .. tostring(value[1]) .. '"]'
+            end
+
             return "{}"
         end,
         decode = function(value)
@@ -99,6 +108,21 @@ hs = {
         end,
     },
     pasteboard = { getContents = function() return nil end },
+    fs = {
+        attributes = function()
+            return { mode = "file" }
+        end,
+    },
+    task = {
+        new = function(_, callback)
+            local instance = {}
+            function instance:start()
+                callback(1, "", "Calendar helper failed")
+                return self
+            end
+            return instance
+        end,
+    },
     screen = {
         mainScreen = function()
             return {
@@ -111,12 +135,13 @@ hs = {
     webview = {
         usercontent = {
             new = function()
-                return {
+                controller = {
                     setCallback = function(self, callback)
                         self.callback = callback
                         return self
                     end,
                 }
+                return controller
             end,
         },
         new = function()
@@ -144,6 +169,10 @@ hs = {
             end
             function instance:delete()
                 self.deleted = true
+            end
+            function instance:evaluateJavaScript(script)
+                self.errorScript = script
+                return self
             end
             preview = instance
             return instance
@@ -192,6 +221,23 @@ asyncRequest.callback(200, "valid-response")
 check("shows extracted preview", preview and preview.shown == true)
 check("raises preview above full-screen apps", preview and preview.aboveEverything == true)
 check("focuses preview window", preview and preview.focused == true)
+
+local approvalSucceeded = pcall(controller.callback, {
+    body = {
+        action = "approve",
+        event = {
+            title = "Visible preview",
+            start = "2030-04-12T09:30:00",
+            ["end"] = "2030-04-12T10:30:00",
+            all_day = false,
+            calendar = "",
+            location = "",
+            notes = "",
+        },
+    },
+})
+check("reports Calendar helper errors without a JSON scalar crash", approvalSucceeded)
+check("renders Calendar helper error in preview", preview and preview.errorScript and preview.errorScript:find("Calendar helper failed", 1, true))
 
 Integration.stop()
 check("stops local receiver", server.stopped == true)

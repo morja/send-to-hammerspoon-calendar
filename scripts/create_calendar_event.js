@@ -1,10 +1,10 @@
-function run(arguments) {
-    if (arguments.length !== 17) {
+function run(input) {
+    if (input.length !== 17) {
         throw new Error("Expected 17 event arguments");
     }
 
     function numberAt(index) {
-        const value = Number(arguments[index]);
+        const value = Number(input[index]);
         if (!Number.isInteger(value)) {
             throw new Error("Invalid numeric date component");
         }
@@ -22,13 +22,13 @@ function run(arguments) {
         );
     }
 
-    const eventTitle = arguments[0];
+    const eventTitle = input[0];
     const startDate = localDateAt(1);
     const endDate = localDateAt(7);
-    const isAllDay = arguments[13] === "true";
-    const requestedCalendar = arguments[14];
-    const eventLocation = arguments[15];
-    const eventNotes = arguments[16];
+    const isAllDay = input[13] === "true";
+    const requestedCalendar = input[14];
+    const eventLocation = input[15];
+    const eventNotes = input[16];
 
     const Calendar = Application("Calendar");
     const calendars = requestedCalendar

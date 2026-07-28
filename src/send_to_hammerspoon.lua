@@ -115,8 +115,23 @@ local function showError(message)
 end
 
 local function jsonForScript(value)
+    local valueToEncode = value
+    local unwrapFirstItem = false
+
+    -- Hammerspoon's hs.json.encode accepts tables only, even though JavaScript messages
+    -- also need scalar strings. Encode scalars inside an array and unwrap them in JS.
+    if type(value) ~= "table" then
+        valueToEncode = { value }
+        unwrapFirstItem = true
+    end
+
     -- Prevent untrusted strings from ending the inline script element.
-    return hs.json.encode(value):gsub("<", "\\u003c")
+    local encoded = hs.json.encode(valueToEncode):gsub("<", "\\u003c")
+    if unwrapFirstItem then
+        return "(" .. encoded .. ")[0]"
+    end
+
+    return encoded
 end
 
 local function setPreviewError(message)

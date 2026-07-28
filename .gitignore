@@ -1,0 +1,15 @@
+.DS_Store
+*.log
+*.scpt
+
+# Local secrets and machine-specific configuration must never be committed.
+.env
+.env.*
+config.lua
+openrouter-api-key
+service.conf
+
+# Editor files
+.idea/
+.vscode/
+*~

@@ -1,0 +1,36 @@
+#!/bin/zsh
+
+set -eu
+
+config_file="$HOME/.config/send-to-hammerspoon/service.conf"
+
+fail() {
+    /usr/bin/osascript -e 'display notification "'"$1"'" with title "Send to Hammerspoon"' >/dev/null 2>&1 || true
+    print -u2 -- "$1"
+    exit 1
+}
+
+[[ -r "$config_file" ]] || fail "Local service configuration is missing. Run install.sh."
+
+# Parse data rather than sourcing the file, so configuration can never execute shell code.
+port=$(/usr/bin/awk -F= '$1 == "PORT" { print $2; exit }' "$config_file")
+token=$(/usr/bin/awk -F= '$1 == "TOKEN" { print $2; exit }' "$config_file")
+
+case "$port" in
+    ''|*[!0-9]*) fail "The configured local port is invalid." ;;
+esac
+
+(( ${#token} >= 32 )) || fail "The configured service token is invalid."
+
+# Automator supplies selected text on stdin. It is sent verbatim and never becomes shell code.
+/usr/bin/curl \
+    --fail \
+    --silent \
+    --show-error \
+    --max-time 5 \
+    --request POST \
+    --header "Content-Type: text/plain; charset=utf-8" \
+    --header "X-Send-To-Hammerspoon-Token: $token" \
+    --data-binary @- \
+    "http://localhost:${port}/event" \
+    >/dev/null

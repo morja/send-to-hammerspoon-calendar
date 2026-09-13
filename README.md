@@ -113,6 +113,7 @@ Hammerspoon must be running and its configuration loaded for either entry point.
 4. Choose **Create Event** or cancel.
 
 The Service is app-independent: any macOS app that exposes selected text to Services can use it, not only browsers.
+The preview uses 24-hour time fields such as `09:30` and `23:15`, regardless of your Mac's AM/PM display setting. Enter optional seconds as `HH:MM:SS`. All-day events show dates only.
 
 ### Clipboard from any app
 

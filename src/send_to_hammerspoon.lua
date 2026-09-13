@@ -244,6 +244,8 @@ local previewTemplate = [=[
     form { display: grid; gap: 13px; }
     label { display: grid; gap: 5px; font-weight: 600; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .date-time-group { display: grid; gap: 9px; }
+    [hidden] { display: none !important; }
     input, textarea { box-sizing: border-box; width: 100%; padding: 8px 9px; border: 1px solid GrayText; border-radius: 7px; background: Field; color: FieldText; font: inherit; }
     textarea { min-height: 90px; resize: vertical; }
     .check { display: flex; align-items: center; gap: 8px; }
@@ -261,8 +263,18 @@ local previewTemplate = [=[
     <div id="error"></div>
     <label>Title <input id="title" required maxlength="200"></label>
     <div class="row">
-        <label>Start <input id="start" required></label>
-        <label>End <input id="end" required></label>
+        <div class="date-time-group">
+            <label>Start date <input id="start-date" type="date" required></label>
+            <label id="start-time-label">Start time (24-hour)
+                <input id="start-time" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?" placeholder="HH:MM" title="Use 24-hour time, HH:MM or HH:MM:SS" required>
+            </label>
+        </div>
+        <div class="date-time-group">
+            <label>End date <input id="end-date" type="date" required></label>
+            <label id="end-time-label">End time (24-hour)
+                <input id="end-time" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?" placeholder="HH:MM" title="Use 24-hour time, HH:MM or HH:MM:SS" required>
+            </label>
+        </div>
     </div>
     <label class="check"><input id="all-day" type="checkbox"> All-day event</label>
     <label>Calendar <input id="calendar" maxlength="200"><span class="hint">Leave empty to use the first writable calendar.</span></label>
@@ -277,38 +289,47 @@ local previewTemplate = [=[
 const initial = __EVENT_JSON__;
 const fields = {
     title: document.querySelector('#title'),
-    start: document.querySelector('#start'),
-    end: document.querySelector('#end'),
+    startDate: document.querySelector('#start-date'),
+    startTime: document.querySelector('#start-time'),
+    endDate: document.querySelector('#end-date'),
+    endTime: document.querySelector('#end-time'),
     allDay: document.querySelector('#all-day'),
     calendar: document.querySelector('#calendar'),
     location: document.querySelector('#location'),
     notes: document.querySelector('#notes')
 };
 
-function setDateInputMode(allDay) {
-    for (const [index, field] of [fields.start, fields.end].entries()) {
-        const value = field.value;
-        field.type = allDay ? 'date' : 'datetime-local';
-        if (allDay) {
-            field.value = value.slice(0, 10);
-        } else {
-            field.value = value.length === 10
-                ? value + (index === 0 ? 'T09:00' : 'T10:00')
-                : value.slice(0, 19);
-        }
+function setDateTime(dateField, timeField, value, defaultTime) {
+    const [date, time] = value.split('T');
+    dateField.value = date;
+
+    // Hide zero seconds, but retain nonzero seconds so editing cannot silently discard them.
+    timeField.value = time
+        ? (time.endsWith(':00') ? time.slice(0, 5) : time)
+        : defaultTime;
+}
+
+function setAllDayMode(allDay) {
+    for (const [field, label] of [
+        [fields.startTime, document.querySelector('#start-time-label')],
+        [fields.endTime, document.querySelector('#end-time-label')]
+    ]) {
+        label.hidden = allDay;
+        field.disabled = allDay;
+        field.required = !allDay;
     }
 }
 
 fields.title.value = initial.title;
-fields.start.value = initial.start;
-fields.end.value = initial.end;
+setDateTime(fields.startDate, fields.startTime, initial.start, '09:00');
+setDateTime(fields.endDate, fields.endTime, initial.end, '10:00');
 fields.allDay.checked = initial.all_day;
 fields.calendar.value = initial.calendar;
 fields.location.value = initial.location;
 fields.notes.value = initial.notes;
-setDateInputMode(initial.all_day);
+setAllDayMode(initial.all_day);
 
-fields.allDay.addEventListener('change', () => setDateInputMode(fields.allDay.checked));
+fields.allDay.addEventListener('change', () => setAllDayMode(fields.allDay.checked));
 document.querySelector('#cancel').addEventListener('click', () => {
     webkit.messageHandlers.sendToHammerspoon.postMessage({ action: 'cancel' });
 });
@@ -319,8 +340,8 @@ document.querySelector('#event-form').addEventListener('submit', event => {
         action: 'approve',
         event: {
             title: fields.title.value,
-            start: fields.start.value,
-            end: fields.end.value,
+            start: fields.startDate.value + (fields.allDay.checked ? '' : 'T' + fields.startTime.value),
+            end: fields.endDate.value + (fields.allDay.checked ? '' : 'T' + fields.endTime.value),
             all_day: fields.allDay.checked,
             calendar: fields.calendar.value,
             location: fields.location.value,
@@ -420,7 +441,7 @@ local function extractEvent(text)
         "Extract exactly one calendar event from the supplied text.",
         "Current local date and time: " .. os.date("%Y-%m-%dT%H:%M:%S%z") .. ".",
         "Resolve relative dates from that value. Do not invent missing details.",
-        "For timed events use local YYYY-MM-DDTHH:MM:SS values.",
+        "For timed events use local YYYY-MM-DDTHH:MM:SS values with 24-hour time, never AM/PM.",
         "For all-day events use YYYY-MM-DD dates and make end the exclusive following date.",
         "If duration is absent, use one hour for timed events and one day for all-day events.",
         "Use the configured calendar suggestion when supplied; otherwise use an empty calendar string.",

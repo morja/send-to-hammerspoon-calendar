@@ -24,6 +24,28 @@ local timed = Event.validate({
 check("valid timed event", timed and timed.title == "Project review")
 check("normalizes seconds", timed and timed.start == "2030-04-12T09:30:00")
 
+local lateEvent = Event.validate({
+    title = "Late call",
+    start = "2030-04-12T23:15:45",
+    ["end"] = "2030-04-13T00:15:45",
+    all_day = false,
+    calendar = "",
+    location = "",
+    notes = "",
+})
+check("accepts 24-hour times and retains seconds", lateEvent and lateEvent.start == "2030-04-12T23:15:45")
+
+local _, amPmError = Event.validate({
+    title = "Wrong format",
+    start = "2030-04-12T09:30 PM",
+    ["end"] = "2030-04-12T10:30 PM",
+    all_day = false,
+    calendar = "",
+    location = "",
+    notes = "",
+})
+check("rejects AM/PM input", amPmError == "start must use YYYY-MM-DDTHH:MM")
+
 local allDay = Event.validate({
     title = "Conference",
     start = "2030-04-12",

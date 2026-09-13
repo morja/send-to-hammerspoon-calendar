@@ -46,10 +46,12 @@ if [[ ! -f "$init_file" ]] || ! /usr/bin/grep -Fq -- "$begin_marker" "$init_file
     } >> "$init_file"
 fi
 
+"$script_directory/install-calendar-service.sh"
+
 print ""
 print "Installation complete. Next steps:"
 print "1. Put only your OpenRouter key in: $key_file"
 print "2. Review local settings in: $install_directory/config.lua"
 print "3. Reload Hammerspoon configuration."
 print "4. Grant Automation access to Calendar when macOS asks."
-print "5. Use Hammerspoon's built-in Send to Hammerspoon Service; no extra workflow is required."
+print "5. Select text and choose Termin erstellen (Create Calendar Event) in Services."

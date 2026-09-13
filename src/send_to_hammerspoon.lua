@@ -501,6 +501,8 @@ local function extractEvent(text)
 
     local systemPrompt = table.concat({
         "Extract exactly one calendar event from the supplied text.",
+        "Understand German and English event descriptions, including relative dates and times.",
+        "Keep the title, location, and notes in the language used by the supplied text.",
         "Current local date and time: " .. os.date("%Y-%m-%dT%H:%M:%S%z") .. ".",
         "Resolve relative dates from that value. Do not invent missing details.",
         "For timed events use local YYYY-MM-DDTHH:MM:SS values with 24-hour time, never AM/PM.",

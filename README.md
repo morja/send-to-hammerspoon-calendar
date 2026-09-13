@@ -2,22 +2,23 @@
 
 A small, open-source macOS integration that turns arbitrary text into a reviewed Calendar event.
 
-Select webpage text and invoke the **Send to Hammerspoon** Service, or copy text from any app and press a configurable global shortcut. Hammerspoon sends the text to OpenRouter for structured extraction, presents an editable local preview, and creates an event only after explicit approval.
+Select text and invoke **Termin erstellen** (shown as **Create Calendar Event** on an English-language Mac), or copy text from any app and press a configurable global shortcut. Hammerspoon sends the text to OpenRouter for structured extraction, presents an editable local preview, and creates an event only after explicit approval.
 
 The software is free under the MIT License. OpenRouter models may charge for API usage; choose a model and account limits appropriate for you.
 
 ## How it works
 
 ```text
-Selected text → Hammerspoon's built-in macOS Service ─┐
-                                                     ├→ Hammerspoon → OpenRouter → editable preview → Calendar
-Clipboard text → global key ─────────────────────────┘
+Selected text → Termin erstellen Quick Action → local HTTP bridge ─┐
+                                                                 ├→ Hammerspoon → OpenRouter → editable preview → Calendar
+Selected text → Hammerspoon's built-in Service ───────────────────┤
+Clipboard text → global key ──────────────────────────────────────┘
 ```
 
 - Hammerspoon's built-in **Send to Hammerspoon** Service delivers selected text directly to the Lua callback.
-- An optional HTTP bridge is bound only to `localhost` and authenticated with a random 256-bit token.
+- The installed Quick Action sends selected text through an HTTP bridge bound only to `localhost` and authenticated with a random 256-bit token.
 - The global shortcut reads the current clipboard directly inside Hammerspoon.
-- Both entry points use the same size checks, structured extraction, validation, preview, and Calendar creation path.
+- All entry points use the same size checks, structured extraction, validation, preview, and Calendar creation path.
 - Calendar values are passed to a fixed JavaScript for Automation (JXA) helper as separate arguments, not interpolated into shell or script source.
 - The API key and Service token live outside both this repository and the installed public scripts.
 
@@ -41,13 +42,16 @@ The installer:
 1. copies the Lua and JXA files to `~/.hammerspoon/send-to-hammerspoon/`;
 2. creates a private Service token in `~/.config/send-to-hammerspoon/service.conf`;
 3. creates a private, empty key file at `~/.config/send-to-hammerspoon/openrouter-api-key`;
-4. adds a small, marked loader block to `~/.hammerspoon/init.lua` if it is not already present.
+4. adds a small, marked loader block to `~/.hammerspoon/init.lua` if it is not already present;
+5. installs `service/Termin erstellen.workflow` into `~/Library/Services/` and refreshes the macOS Services registry.
 
-Hammerspoon itself registers the **Send to Hammerspoon** macOS Service. The integration attaches its selected-text handler directly to that native Service, so no Automator workflow is needed.
+The installer can run repeatedly. It leaves an unchanged workflow alone and replaces an older **Termin erstellen** workflow without creating a backup. It also removes backup copies left in `~/Library/Services/` by older installer versions, since macOS can show them as duplicate menu items. To reinstall only the Quick Action, run `./scripts/install-calendar-service.sh`.
 
-### Optional HTTP bridge
+The workflow receives selected text in any app that supports macOS Services, then calls the installed `send-to-hammerspoon-service` bridge script. Its menu item uses macOS localization: **Termin erstellen** in German and **Create Calendar Event** in English. The extraction prompt accepts German and English event descriptions. Hammerspoon's built-in **Send to Hammerspoon** Service remains available as another entry point.
 
-The localhost receiver remains available for launchers or automation tools that cannot invoke the native Service. The example workflow under `service/` demonstrates the bridge. Give custom workflows a distinct name such as **Send to Hammerspoon Calendar (HTTP)** to avoid colliding with Hammerspoon's built-in Service.
+### Other HTTP bridge workflows
+
+The localhost receiver also works with launchers or other automation tools. The older example workflow under `service/Send to Hammerspoon.workflow` demonstrates the bridge. Give other workflows a distinct name to avoid colliding with the installed Quick Action or Hammerspoon's built-in Service.
 
 Configure a **Run Shell Script** action as follows:
 
@@ -99,7 +103,7 @@ macOS asks for permissions when each capability is first used. Review the exact 
 
 - **Accessibility:** enable Hammerspoon under **System Settings → Privacy & Security → Accessibility** so its global shortcut works reliably.
 - **Automation / Calendar:** allow Hammerspoon (or `osascript` launched by it) to control Calendar under **Privacy & Security → Automation**. The first approved event should trigger this prompt.
-- **Service shortcut:** Hammerspoon's built-in Service should appear under **System Settings → Keyboard → Keyboard Shortcuts → Services**. Enable it there and optionally assign a separate keyboard shortcut.
+- **Service shortcut:** The **Termin erstellen / Create Calendar Event** Quick Action should appear under **System Settings → Keyboard → Keyboard Shortcuts → Services**. Enable it there and optionally assign a keyboard shortcut.
 
 Hammerspoon must be running and its configuration loaded for either entry point.
 
@@ -108,11 +112,11 @@ Hammerspoon must be running and its configuration loaded for either entry point.
 ### Selected webpage or app text
 
 1. Select text that describes one event.
-2. Open the app's context menu or **Services** menu and choose **Send to Hammerspoon**.
+2. Open the app's context menu or **Services** menu and choose **Termin erstellen** or **Create Calendar Event**, according to your Mac's language.
 3. Review every field in the preview.
 4. Choose **Create Event** or cancel.
 
-The Service is app-independent: any macOS app that exposes selected text to Services can use it, not only browsers.
+The Service is app-independent: any macOS app that exposes selected text to Services can use it, not only browsers. German and English descriptions both work; always review the extracted fields before creating the event.
 The preview shows and accepts dates as `TT.MM.JJJJ`, for example `26.09.2026`, regardless of your Mac's date setting. It uses 24-hour time fields such as `09:30` and `23:15`, with optional seconds as `HH:MM:SS`. Calendar still receives unambiguous ISO dates internally. All-day events show dates only.
 For an all-day event covering 18.09.2026 through 20.09.2026, enter 21.09.2026 as the end date. Calendar treats that end date as exclusive.
 
@@ -159,14 +163,14 @@ Run the local checks on macOS with Lua installed:
 ./tests/run.sh
 ```
 
-The suite exercises event validation and syntax-checks Lua, zsh, the Automator plist, and JXA. End-to-end OpenRouter and Calendar actions are intentionally not automated because they require a private key, network access, explicit macOS consent, and a real Calendar database.
+The suite exercises event validation, checks the bilingual extraction prompt, and syntax-checks Lua, zsh, the Automator workflow files, and JXA. End-to-end OpenRouter and Calendar actions are intentionally not automated because they require a private key, network access, explicit macOS consent, and a real Calendar database.
 
 ## Uninstall
 
 Quit or stop the integration in Hammerspoon, then remove:
 
 - `~/.hammerspoon/send-to-hammerspoon/`
-- any optional custom HTTP bridge workflow you created
+- `~/Library/Services/Termin erstellen.workflow` and any optional custom HTTP bridge workflow you created
 - `~/.config/send-to-hammerspoon/`
 - the marked block between `BEGIN send-to-hammerspoon-calendar` and `END send-to-hammerspoon-calendar` in `~/.hammerspoon/init.lua`
 

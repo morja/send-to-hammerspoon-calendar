@@ -1,6 +1,7 @@
 local failures = 0
 local alerts = {}
 local asyncRequest = nil
+local extractionPayload = nil
 local server = nil
 local preview = nil
 local controller = nil
@@ -82,6 +83,10 @@ hs = {
 
             if value.title then
                 lastPreviewObject = value
+            end
+
+            if value.messages and value.response_format then
+                extractionPayload = value
             end
 
             return "{}"
@@ -231,6 +236,8 @@ check("registers Hammerspoon native text Service", hs.textDroppedToDockIconCallb
 
 hs.textDroppedToDockIconCallback("Native selected text")
 check("native text Service starts extraction", asyncRequest and asyncRequest.url == "https://openrouter.ai/api/v1/chat/completions")
+check("extractor handles German and English text", extractionPayload
+    and extractionPayload.messages[1].content:find("German and English event descriptions", 1, true))
 asyncRequest.callback(500, "bad response")
 
 local _, wrongPathStatus = server.callback("POST", "/wrong", {}, "Example")

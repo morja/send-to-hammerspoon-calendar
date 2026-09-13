@@ -149,6 +149,12 @@ local function setPreviewError(message)
     state.preview:evaluateJavaScript(script)
 end
 
+local function userFacingValidationError(message)
+    return message
+        :gsub("YYYY%-MM%-DDTHH:MM", "TT.MM.JJJJ HH:MM")
+        :gsub("YYYY%-MM%-DD", "TT.MM.JJJJ")
+end
+
 local function closePreview()
     if state.preview then
         state.preview:delete()
@@ -190,7 +196,7 @@ local function createCalendarEvent(rawEvent)
 
     local event, validationError = Event.validate(rawEvent)
     if not event then
-        setPreviewError(validationError)
+        setPreviewError(userFacingValidationError(validationError))
         return
     end
 
@@ -264,19 +270,20 @@ local previewTemplate = [=[
     <label>Title <input id="title" required maxlength="200"></label>
     <div class="row">
         <div class="date-time-group">
-            <label>Start date <input id="start-date" type="date" required></label>
+            <label>Start date <input id="start-date" type="text" inputmode="numeric" pattern="[0-9]{2}[.][0-9]{2}[.][0-9]{4}" placeholder="TT.MM.JJJJ" title="Use TT.MM.JJJJ" maxlength="10" required></label>
             <label id="start-time-label">Start time (24-hour)
                 <input id="start-time" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?" placeholder="HH:MM" title="Use 24-hour time, HH:MM or HH:MM:SS" required>
             </label>
         </div>
         <div class="date-time-group">
-            <label>End date <input id="end-date" type="date" required></label>
+            <label>End date <input id="end-date" type="text" inputmode="numeric" pattern="[0-9]{2}[.][0-9]{2}[.][0-9]{4}" placeholder="TT.MM.JJJJ" title="Use TT.MM.JJJJ" maxlength="10" required></label>
             <label id="end-time-label">End time (24-hour)
                 <input id="end-time" type="text" inputmode="numeric" pattern="([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?" placeholder="HH:MM" title="Use 24-hour time, HH:MM or HH:MM:SS" required>
             </label>
         </div>
     </div>
     <label class="check"><input id="all-day" type="checkbox"> All-day event</label>
+    <span id="all-day-hint" class="hint" hidden>For an event through 20.09.2026, set the end date to 21.09.2026. Calendar uses an exclusive end date for all-day events.</span>
     <label>Calendar <input id="calendar" maxlength="200"><span class="hint">Leave empty to use the first writable calendar.</span></label>
     <label>Location <input id="location" maxlength="500"></label>
     <label>Notes <textarea id="notes" maxlength="10000"></textarea></label>
@@ -287,6 +294,7 @@ local previewTemplate = [=[
 </form>
 <script>
 const initial = __EVENT_JSON__;
+const initialError = __ERROR_JSON__;
 const fields = {
     title: document.querySelector('#title'),
     startDate: document.querySelector('#start-date'),
@@ -299,9 +307,19 @@ const fields = {
     notes: document.querySelector('#notes')
 };
 
+function germanDate(isoDate) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+    return match ? `${match[3]}.${match[2]}.${match[1]}` : '';
+}
+
+function isoDate(germanDate) {
+    const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(germanDate);
+    return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+}
+
 function setDateTime(dateField, timeField, value, defaultTime) {
     const [date, time] = value.split('T');
-    dateField.value = date;
+    dateField.value = germanDate(date);
 
     // Hide zero seconds, but retain nonzero seconds so editing cannot silently discard them.
     timeField.value = time
@@ -310,6 +328,8 @@ function setDateTime(dateField, timeField, value, defaultTime) {
 }
 
 function setAllDayMode(allDay) {
+    document.querySelector('#all-day-hint').hidden = !allDay;
+
     for (const [field, label] of [
         [fields.startTime, document.querySelector('#start-time-label')],
         [fields.endTime, document.querySelector('#end-time-label')]
@@ -340,8 +360,8 @@ document.querySelector('#event-form').addEventListener('submit', event => {
         action: 'approve',
         event: {
             title: fields.title.value,
-            start: fields.startDate.value + (fields.allDay.checked ? '' : 'T' + fields.startTime.value),
-            end: fields.endDate.value + (fields.allDay.checked ? '' : 'T' + fields.endTime.value),
+            start: isoDate(fields.startDate.value) + (fields.allDay.checked ? '' : 'T' + fields.startTime.value),
+            end: isoDate(fields.endDate.value) + (fields.allDay.checked ? '' : 'T' + fields.endTime.value),
             all_day: fields.allDay.checked,
             calendar: fields.calendar.value,
             location: fields.location.value,
@@ -355,12 +375,15 @@ window.showError = message => {
     error.textContent = message;
     error.style.display = 'block';
 };
+if (initialError) {
+    window.showError(initialError);
+}
 </script>
 </body>
 </html>
 ]=]
 
-local function showPreview(event)
+local function showPreview(event, initialError)
     closePreview()
 
     local screen = hs.screen.mainScreen():frame()
@@ -389,6 +412,9 @@ local function showPreview(event)
     local html = previewTemplate:gsub("__EVENT_JSON__", function()
         return jsonForScript(event)
     end, 1)
+    html = html:gsub("__ERROR_JSON__", function()
+        return jsonForScript(initialError or "")
+    end, 1)
     state.preview = hs.webview.new(frame, { developerExtrasEnabled = false }, state.controller)
         :windowTitle("Send to Hammerspoon")
         :allowTextEntry(true)
@@ -410,6 +436,42 @@ local function showPreview(event)
     if previewWindow then
         previewWindow:focus()
     end
+end
+
+local function dateForCorrection(value, allDay)
+    if type(value) ~= "string" then
+        return ""
+    end
+
+    if allDay then
+        return value:match("^%d%d%d%d%-%d%d%-%d%d$") and value or ""
+    end
+
+    if value:match("^%d%d%d%d%-%d%d%-%d%dT%d%d:%d%d$")
+        or value:match("^%d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%d$") then
+        return value
+    end
+
+    return ""
+end
+
+local function correctionPreviewEvent(extracted)
+    local allDay = extracted.all_day == true
+    local function stringOrEmpty(value)
+        return type(value) == "string" and value or ""
+    end
+
+    -- Do not turn an invalid midnight date-time into an all-day date silently.
+    -- Leave malformed fields empty so the reviewer must enter a valid date.
+    return {
+        title = stringOrEmpty(extracted.title),
+        start = dateForCorrection(extracted.start, allDay),
+        ["end"] = dateForCorrection(extracted["end"], allDay),
+        all_day = allDay,
+        calendar = stringOrEmpty(extracted.calendar),
+        location = stringOrEmpty(extracted.location),
+        notes = stringOrEmpty(extracted.notes),
+    }
 end
 
 local function extractionSchema()
@@ -443,6 +505,9 @@ local function extractEvent(text)
         "Resolve relative dates from that value. Do not invent missing details.",
         "For timed events use local YYYY-MM-DDTHH:MM:SS values with 24-hour time, never AM/PM.",
         "For all-day events use YYYY-MM-DD dates and make end the exclusive following date.",
+        "A range with dates but no times is all-day; never use midnight date-times for it.",
+        "For an inclusive date range, set the exclusive end to the day after the last stated date.",
+        "If the year is omitted, use the next occurrence of the stated date from the current local date.",
         "If duration is absent, use one hour for timed events and one day for all-day events.",
         "Use the configured calendar suggestion when supplied; otherwise use an empty calendar string.",
     }, " ")
@@ -500,6 +565,14 @@ local function extractEvent(text)
 
             local event, validationError = Event.validate(extracted)
             if not event then
+                if validationError:match("^start ") or validationError:match("^end ") then
+                    showPreview(
+                        correctionPreviewEvent(extracted),
+                        "OpenRouter returned an invalid date (" .. userFacingValidationError(validationError) .. "). Enter or correct the dates before creating the event."
+                    )
+                    return
+                end
+
                 showError("Extracted event is invalid: " .. validationError)
                 return
             end

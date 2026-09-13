@@ -4,6 +4,8 @@ local asyncRequest = nil
 local server = nil
 local preview = nil
 local controller = nil
+local lastPreviewObject = nil
+local calendarTaskStarts = 0
 local originalNativeServiceCallback = function() end
 
 local function check(name, condition)
@@ -78,6 +80,10 @@ hs = {
                 return '["' .. tostring(value[1]) .. '"]'
             end
 
+            if value.title then
+                lastPreviewObject = value
+            end
+
             return "{}"
         end,
         decode = function(value)
@@ -101,6 +107,26 @@ hs = {
                 }
             end
 
+            if value == "invalid-response" then
+                return {
+                    choices = {
+                        { message = { content = "invalid-event" } },
+                    },
+                }
+            end
+
+            if value == "invalid-event" then
+                return {
+                    title = "Jahrestreffen der Satsanggruppen",
+                    start = "2026-09-18T00:00:00",
+                    ["end"] = "2026-09-21T00:00:00",
+                    all_day = true,
+                    calendar = "",
+                    location = "Amma-Zentrum",
+                    notes = "",
+                }
+            end
+
             return nil
         end,
     },
@@ -117,6 +143,7 @@ hs = {
     },
     task = {
         new = function(_, callback)
+            calendarTaskStarts = calendarTaskStarts + 1
             local instance = {}
             function instance:start()
                 callback(1, "", "Calendar helper failed")
@@ -148,10 +175,14 @@ hs = {
         },
         new = function()
             local instance = {}
-            for _, method in ipairs({ "windowTitle", "allowTextEntry", "windowStyle", "deleteOnClose", "windowCallback", "html" }) do
+            for _, method in ipairs({ "windowTitle", "allowTextEntry", "windowStyle", "deleteOnClose", "windowCallback" }) do
                 instance[method] = function(self)
                     return self
                 end
+            end
+            function instance:html(value)
+                self.htmlSource = value
+                return self
             end
             function instance:show()
                 self.shown = true
@@ -245,6 +276,30 @@ local approvalSucceeded = pcall(controller.callback, {
 })
 check("reports Calendar helper errors without a JSON scalar crash", approvalSucceeded)
 check("renders Calendar helper error in preview", preview and preview.errorScript and preview.errorScript:find("Calendar helper failed", 1, true))
+
+local previousPreview = preview
+local _, acceptedInvalidExtraction = server.callback("POST", "/event", headers, "18. bis 20. September im Amma-Zentrum")
+asyncRequest.callback(200, "invalid-response")
+check("accepts date-range text for extraction", acceptedInvalidExtraction == 202)
+check("invalid extracted date opens correction preview", preview and preview ~= previousPreview and preview.shown == true)
+check("unsafe extracted dates are not prefilled", lastPreviewObject and lastPreviewObject.start == "" and lastPreviewObject["end"] == "")
+check("correction preview explains date error in German format", preview and preview.htmlSource and preview.htmlSource:find("start must use TT.MM.JJJJ", 1, true))
+
+local tasksBeforeCorrection = calendarTaskStarts
+controller.callback({ body = { action = "approve", event = lastPreviewObject } })
+check("invalid dates cannot create a Calendar event", calendarTaskStarts == tasksBeforeCorrection)
+
+local correctedEvent = {
+    title = lastPreviewObject.title,
+    start = "2026-09-18",
+    ["end"] = "2026-09-21",
+    all_day = true,
+    calendar = lastPreviewObject.calendar,
+    location = lastPreviewObject.location,
+    notes = lastPreviewObject.notes,
+}
+controller.callback({ body = { action = "approve", event = correctedEvent } })
+check("corrected all-day dates can reach Calendar", calendarTaskStarts == tasksBeforeCorrection + 1)
 
 Integration.stop()
 check("stops local receiver", server.stopped == true)

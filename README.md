@@ -113,7 +113,8 @@ Hammerspoon must be running and its configuration loaded for either entry point.
 4. Choose **Create Event** or cancel.
 
 The Service is app-independent: any macOS app that exposes selected text to Services can use it, not only browsers.
-The preview uses 24-hour time fields such as `09:30` and `23:15`, regardless of your Mac's AM/PM display setting. Enter optional seconds as `HH:MM:SS`. All-day events show dates only.
+The preview shows and accepts dates as `TT.MM.JJJJ`, for example `26.09.2026`, regardless of your Mac's date setting. It uses 24-hour time fields such as `09:30` and `23:15`, with optional seconds as `HH:MM:SS`. Calendar still receives unambiguous ISO dates internally. All-day events show dates only.
+For an all-day event covering 18.09.2026 through 20.09.2026, enter 21.09.2026 as the end date. Calendar treats that end date as exclusive.
 
 ### Clipboard from any app
 
@@ -142,6 +143,7 @@ Keep `~/.config/send-to-hammerspoon/` readable only by your user. Rotate the tok
 ## Limitations
 
 - AI extraction can be wrong. The confirmation preview is a required safety boundary, not a guarantee of correctness.
+- If extraction returns an invalid date, the preview leaves that date blank and asks you to correct it before creating the event.
 - One invocation creates at most one event. Recurrence, attendees, alerts, attachments, and travel time are not supported initially.
 - Times are interpreted in the Mac's current local timezone. Named or remote timezones may need manual correction.
 - When no Calendar name is configured or approved, the first writable Calendar returned by macOS is used; configure an exact name for predictable placement.
